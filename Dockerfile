@@ -1,19 +1,27 @@
 # ETAPA 1: Compilar Despachos
-FROM maven:3.9-openjdk-17 AS builder-despachos
+FROM maven:3.9.6-eclipse-temurin-17 AS builder-despachos
+
 WORKDIR /app/despachos
+
 COPY despachos/Springboot-API-REST-DESPACHO/pom.xml .
 COPY despachos/Springboot-API-REST-DESPACHO/src ./src
+
 RUN mvn clean package -DskipTests
+
 
 # ETAPA 2: Compilar Ventas
-FROM maven:3.9-openjdk-17 AS builder-ventas
+FROM maven:3.9.6-eclipse-temurin-17 AS builder-ventas
+
 WORKDIR /app/ventas
+
 COPY ventas/Springboot-API-REST/pom.xml .
 COPY ventas/Springboot-API-REST/src ./src
+
 RUN mvn clean package -DskipTests
 
+
 # ETAPA 3: Imagen final
-FROM openjdk:17-jre-slim
+FROM eclipse-temurin:17-jre
 
 # Crear usuario no-root
 RUN addgroup --system --gid 1001 appgroup && \
