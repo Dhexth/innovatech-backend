@@ -3,8 +3,8 @@ FROM maven:3.9.6-eclipse-temurin-17 AS builder-despachos
 
 WORKDIR /app/despachos
 
-COPY despachos/Springboot-API-REST-DESPACHO/pom.xml .
-COPY despachos/Springboot-API-REST-DESPACHO/src ./src
+COPY despachos/pom.xml .
+COPY despachos/src ./src
 
 RUN mvn clean package -DskipTests
 
@@ -14,8 +14,8 @@ FROM maven:3.9.6-eclipse-temurin-17 AS builder-ventas
 
 WORKDIR /app/ventas
 
-COPY ventas/Springboot-API-REST/pom.xml .
-COPY ventas/Springboot-API-REST/src ./src
+COPY ventas/pom.xml .
+COPY ventas/src ./src
 
 RUN mvn clean package -DskipTests
 
