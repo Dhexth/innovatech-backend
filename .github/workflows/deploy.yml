@@ -107,17 +107,20 @@ jobs:
                 driver: bridge
             EOF
 
-            # Detener stack anterior
-            sudo docker-compose down || true
+            # Levantar base de datos si no existe
+            sudo docker-compose up -d database
 
-            # Descargar nuevas imágenes
-            sudo docker-compose pull
+            # Esperar inicialización MySQL
+            sleep 20
 
-            # Levantar contenedores
-            sudo docker-compose up -d
+            # Descargar nueva imagen backend
+            sudo docker-compose pull backend
 
-            # Mostrar estado
+            # Actualizar solo backend
+            sudo docker-compose up -d backend
+
+            # Verificar estado
             sudo docker-compose ps
 
-            # Limpiar imágenes dangling
+            # Limpiar imágenes viejas
             sudo docker image prune -f
