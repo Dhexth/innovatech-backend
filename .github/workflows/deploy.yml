@@ -2,7 +2,8 @@ name: Deploy Backend to EC2
 
 on:
   push:
-    branches: [ "deploy" ]
+    branches:
+      - deploy
   workflow_dispatch:
 
 jobs:
@@ -38,15 +39,17 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 30m
+          command_timeout: 30m
           script: |
-            # Login ECR
+            # Login a ECR
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
             | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
 
-            # Crear carpeta proyecto
+            # Crear directorio aplicación
             mkdir -p /home/ubuntu/innovatech-backend
 
-            # Entrar carpeta
+            # Entrar al directorio
             cd /home/ubuntu/innovatech-backend
 
             # Crear docker-compose.yml
@@ -54,6 +57,7 @@ jobs:
             version: '3.8'
 
             services:
+
               database:
                 image: mysql:8.0
                 container_name: innovatech-db
@@ -103,10 +107,17 @@ jobs:
                 driver: bridge
             EOF
 
-            # Levantar contenedores
+            # Detener stack anterior
             sudo docker-compose down || true
+
+            # Descargar nuevas imágenes
             sudo docker-compose pull
+
+            # Levantar contenedores
             sudo docker-compose up -d
 
-            # Limpiar imágenes antiguas
+            # Mostrar estado
+            sudo docker-compose ps
+
+            # Limpiar imágenes dangling
             sudo docker image prune -f
