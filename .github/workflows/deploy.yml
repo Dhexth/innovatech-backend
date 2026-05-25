@@ -43,17 +43,16 @@ jobs:
           command_timeout: 30m
           script: |
             # Login a ECR
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
-            | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
 
-            # Crear directorio aplicación
-            mkdir -p /home/ubuntu/innovatech-backend
+            # Crear directorio proyecto
+            sudo mkdir -p /home/ubuntu/innovatech-backend
 
             # Entrar al directorio
             cd /home/ubuntu/innovatech-backend
 
             # Crear docker-compose.yml
-            cat > docker-compose.yml << EOF
+            sudo tee docker-compose.yml > /dev/null << 'EOF'
             version: '3.8'
 
             services:
@@ -107,19 +106,10 @@ jobs:
                 driver: bridge
             EOF
 
-            # Levantar base de datos si no existe
-            sudo docker-compose up -d database
+            # Levantar servicios
+            sudo docker-compose up -d
 
-            # Esperar inicialización MySQL
-            sleep 20
-
-            # Descargar nueva imagen backend
-            sudo docker-compose pull backend
-
-            # Actualizar solo backend
-            sudo docker-compose up -d backend
-
-            # Verificar estado
+            # Verificar estado contenedores
             sudo docker-compose ps
 
             # Limpiar imágenes viejas
