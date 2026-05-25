@@ -22,18 +22,15 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image
-        id: build-image
+      - name: Build, tag and push Docker image
         env:
           ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build --tag $ECR_REGISTRY:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY:$IMAGE_TAG .
           docker push $ECR_REGISTRY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
@@ -42,18 +39,74 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
-            docker pull ${{ secrets.ECR_REGISTRY }}:${{ github.sha }}
-            docker stop innovatech-backend || true
-            docker rm innovatech-backend || true
-            docker run -d \
-              --name innovatech-backend \
-              --restart unless-stopped \
-              -p 8080:8080 \
-              -p 8081:8081 \
-              -e DB_ENDPOINT=database \
-              -e DB_PORT=3306 \
-              -e DB_NAME=innovatech_db \
-              -e DB_USERNAME=backend \
-              -e DB_PASSWORD=password123 \
-              ${{ secrets.ECR_REGISTRY }}:${{ github.sha }}
+            # Login ECR
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
+            | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+
+            # Crear carpeta proyecto
+            mkdir -p /home/ubuntu/innovatech-backend
+
+            # Entrar carpeta
+            cd /home/ubuntu/innovatech-backend
+
+            # Crear docker-compose.yml
+            cat > docker-compose.yml << EOF
+            version: '3.8'
+
+            services:
+              database:
+                image: mysql:8.0
+                container_name: innovatech-db
+                restart: unless-stopped
+                environment:
+                  MYSQL_ROOT_PASSWORD: root123
+                  MYSQL_DATABASE: innovatech_db
+                  MYSQL_USER: backend
+                  MYSQL_PASSWORD: password123
+                volumes:
+                  - mysql_data:/var/lib/mysql
+                networks:
+                  - app-network
+                healthcheck:
+                  test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot123"]
+                  interval: 10s
+                  timeout: 5s
+                  retries: 10
+
+              backend:
+                image: ${{ secrets.ECR_REGISTRY }}:${{ github.sha }}
+                container_name: innovatech-backend
+                restart: unless-stopped
+                depends_on:
+                  database:
+                    condition: service_healthy
+                ports:
+                  - "8080:8080"
+                  - "8081:8081"
+                environment:
+                  DB_ENDPOINT: database
+                  DB_PORT: 3306
+                  DB_NAME: innovatech_db
+                  DB_USERNAME: backend
+                  DB_PASSWORD: password123
+                volumes:
+                  - backend_data:/app/data
+                networks:
+                  - app-network
+
+            volumes:
+              mysql_data:
+              backend_data:
+
+            networks:
+              app-network:
+                driver: bridge
+            EOF
+
+            # Levantar contenedores
+            sudo docker-compose down || true
+            sudo docker-compose pull
+            sudo docker-compose up -d
+
+            # Limpiar imágenes antiguas
+            sudo docker image prune -f
