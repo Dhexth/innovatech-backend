@@ -1,43 +1,50 @@
 version: '3.8'
 
 services:
+
   database:
     image: mysql:8.0
     container_name: innovatech-db
     restart: unless-stopped
+
     environment:
       MYSQL_ROOT_PASSWORD: root123
       MYSQL_DATABASE: innovatech_db
       MYSQL_USER: backend
       MYSQL_PASSWORD: password123
+
+    ports:
+      - "3306:3306"
+
     volumes:
       - mysql_data:/var/lib/mysql
+
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   backend:
     image: 802047179233.dkr.ecr.us-east-1.amazonaws.com/innovatech-backend:latest
     container_name: innovatech-backend
+
     restart: unless-stopped
+
     depends_on:
-      database:
-        condition: service_healthy
+      - database
+
     ports:
       - "8080:8080"
       - "8081:8081"
+
     environment:
       DB_ENDPOINT: database
       DB_PORT: 3306
       DB_NAME: innovatech_db
       DB_USERNAME: backend
       DB_PASSWORD: password123
+
     volumes:
       - backend_data:/app/data
+
     networks:
       - app-network
 
