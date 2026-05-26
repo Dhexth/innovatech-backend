@@ -33,67 +33,49 @@ jobs:
           docker build -t $ECR_REGISTRY:$IMAGE_TAG .
           docker push $ECR_REGISTRY:$IMAGE_TAG
 
+      - name: Prepare docker-compose on EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/ubuntu/innovatech-backend/"
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 30m
-          command_timeout: 30m
+          timeout: 5m
+          command_timeout: 8m
           script: |
             set -e
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
-            sudo mkdir -p /home/ubuntu/innovatech-backend
+
+            # Login a ECR (sin sudo)
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
+              | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+
+            # Pull imagen nueva
+            docker pull ${{ secrets.ECR_REGISTRY }}:${{ github.sha }}
+
+            # Ir al directorio del proyecto
             cd /home/ubuntu/innovatech-backend
-            sudo tee docker-compose.yml > /dev/null << 'EOF'
-            version: '3.8'
-            services:
-              database:
-                image: mysql:8.0
-                container_name: innovatech-db
-                restart: unless-stopped
-                environment:
-                  MYSQL_ROOT_PASSWORD: root123
-                  MYSQL_DATABASE: innovatech_db
-                  MYSQL_USER: backend
-                  MYSQL_PASSWORD: password123
-                ports:
-                  - "3306:3306"
-                volumes:
-                  - mysql_data:/var/lib/mysql
-                networks:
-                  - app-network
-                healthcheck:
-                  test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot123"]
-                  interval: 10s
-                  timeout: 5s
-                  retries: 10
-              backend:
-                image: ${{ secrets.ECR_REGISTRY }}:${{ github.sha }}
-                container_name: innovatech-backend
-                restart: unless-stopped
-                depends_on:
-                  database:
-                    condition: service_healthy
-                ports:
-                  - "8080:8080"
-                  - "8081:8081"
-                environment:
-                  DB_ENDPOINT: database
-                  DB_PORT: 3306
-                  DB_NAME: innovatech_db
-                  DB_USERNAME: backend
-                  DB_PASSWORD: password123
-                networks:
-                  - app-network
-            volumes:
-              mysql_data:
-            networks:
-              app-network:
-                driver: bridge
-            EOF
-            sudo docker-compose down || true
-            sudo docker-compose up -d
-            sudo docker-compose ps
-            sudo docker image prune -af
+
+            # Exportar variables que usa docker-compose.yml
+            export ECR_REGISTRY=${{ secrets.ECR_REGISTRY }}
+            export IMAGE_TAG=${{ github.sha }}
+
+            # Reiniciar stack
+            docker compose down || true
+            docker compose up -d
+
+            # Verificar estado
+            sleep 5
+            docker compose ps
+
+            # Limpiar imágenes viejas
+            docker image prune -af
+
+            echo "Deploy completado exitosamente"
