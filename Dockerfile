@@ -36,12 +36,13 @@ COPY --from=builder-ventas /app/ventas/target/*.jar ventas.jar
 # Copiar script inicio
 COPY start.sh .
 
-# Permisos
+# Permisos y limpiar line endings
 RUN chmod +x start.sh && \
+    sed -i 's/\r//' start.sh && \
     chown -R appuser:appgroup /app
 
 USER appuser
 
 EXPOSE 8080 8081
 
-CMD ["./start.sh"]
+CMD ["/bin/sh", "./start.sh"]
