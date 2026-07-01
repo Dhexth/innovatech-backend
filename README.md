@@ -1,158 +1,64 @@
-# Innovatech Backend — ISY1101 EP2
 
-## Descripción
+# Innovatech Chile - Backend (Microservicios Spring Boot)
 
-Backend de Innovatech Chile compuesto por dos microservicios Spring Boot desplegados en AWS EC2 mediante contenedores Docker y un pipeline CI/CD automatizado con GitHub Actions.
+Este repositorio centraliza los microservicios lógicos de negocio para **Innovatech Chile**, estructurados bajo un modelo modular, desacoplado y completamente administrado en la nube.
 
-| Microservicio | Puerto | Descripción |
-|---|---|---|
-| Despachos | 8080 | Gestión de despachos |
-| Ventas | 8081 | Gestión de ventas |
-| MySQL 8.0 | 3306 | Base de datos persistente |
+## 🗂️ Componentes del Sistema
+El backend está compuesto por dos microservicios Java totalmente independientes que comparten una única capa de datos relacional:
+1.  **Microservicio Despachos:** Encargado de la lógica operativa, control de estados y tracking logístico de las entregas.
+2.  **Microservicio Ventas:** Responsable del ciclo comercial, transacciones financieras y procesamiento de ventas corporativas.
 
 ---
 
-## Estructura del Repositorio
+## 🛠️ Requisitos Previos
 
-```
-innovatech-backend/
-├── Dockerfile              # Multi-stage build (3 etapas)
-├── start.sh                # Script de arranque de ambos JARs
-├── docker-compose.yml      # Stack completo (backend + MySQL)
-├── .github/
-│   └── workflows/
-│       └── deploy.yml      # Pipeline CI/CD
-├── despachos/
-│   ├── pom.xml
-│   └── src/
-└── ventas/
-    ├── pom.xml
-    └── src/
-```
+Para ejecutar, compilar o depurar estos servicios en tu entorno local necesitas:
+* **Java Development Kit (JDK) 17 o superior**.
+* **Maven 3+** (O utilizar el envoltorio ejecutable `./mvnw` empaquetado en el proyecto).
+* **MySQL 8.0** activo localmente o acceso al endpoint correspondiente de Amazon RDS.
 
 ---
 
-## Dockerfile — Multi-Stage Build
+## 🚀 Configuración y Uso Local
 
-El Dockerfile utiliza 3 etapas para optimizar el tamaño de la imagen final:
+### 1. Variables de Entorno de Persistencia
+Los microservicios obtienen las credenciales de conexión de la base de datos de manera dinámica para evitar credenciales quemadas (*hardcodeadas*) en el código. Configura las siguientes variables en tu sistema operativo o IDE:
 
-1. **builder-despachos** — Compila el microservicio de despachos con Maven
-2. **builder-ventas** — Compila el microservicio de ventas con Maven
-3. **Producción** — Imagen final `eclipse-temurin:17-jre` con usuario no root (`appuser`, UID 1001)
+```env
+SPRING_DATASOURCE_URL=jdbc:mysql://<HOST_RDS_O_LOCAL>:3306/innovatech_db?createDatabaseIfNotExist=true
+SPRING_DATASOURCE_USERNAME=backend
+SPRING_DATASOURCE_PASSWORD=password123
+SPRING_JPA_HIBERNATE_DDL_AUTO=update
 
-Buenas prácticas aplicadas:
-- Usuario no root (`appuser:appgroup`)
-- Imagen base mínima (JRE, no JDK completo)
-- `sed -i 's/\r//' start.sh` para eliminar line endings de Windows
-- Puertos 8080 y 8081 expuestos
+🔌 Puertos de Escucha y Endpoints
+Cada servicio levanta un servidor embebido Tomcat en un puerto dedicado para no generar conflictos de red:
 
----
+Servicio Despachos (Puerto 8081):
 
-## docker-compose.yml
+GET /api/v1/despachos ➡️ Devuelve el listado completo del control logístico.
 
-Levanta el stack completo con:
+Servicio Ventas (Puerto 8082):
 
-- **database**: MySQL 8.0 con healthcheck (`mysqladmin ping`)
-- **backend**: imagen desde ECR, espera a que la DB esté healthy
-- **Red interna**: `app-network` (bridge)
-- **Volumen persistente**: `innovatech_mysql_data` (named volume)
+GET /api/v1/ventas ➡️ Devuelve el historial de transacciones comerciales.
 
-### Variables de entorno del backend
+💻 Comandos de Consola (Maven)
+Ubícate en la carpeta raíz del microservicio específico que deseas iniciar y ejecuta:
+# 1. Limpiar construcciones previas y empaquetar el código en un binario ejecutable .jar
+./mvnw clean package -DskipTests
 
-| Variable | Valor |
-|---|---|
-| DB_ENDPOINT | database |
-| DB_PORT | 3306 |
-| DB_NAME | innovatech_db |
-| DB_USERNAME | backend |
-| DB_PASSWORD | password123 |
+# 2. Levantar el microservicio localmente con el contexto de Spring Boot
+./mvnw spring-boot:run
 
----
+🐳 Dockerización y AWS ECS
+Cada componente cuenta con su propio archivo Dockerfile optimizado. El artefacto final .jar se encapsula dentro de una imagen diseñada para correr de manera serverless en el servicio AWS Fargate.
+# Construir la imagen Docker local para el microservicio
+docker build -t innovatech-despachos:latest .
 
-## Pipeline CI/CD — GitHub Actions
+Análisis Crítico y Errores Resueltos
+Si experimentas fallas en el entorno, valida las siguientes soluciones de infraestructura aplicadas en este proyecto:
 
-El pipeline se activa con un `push` a la rama `deploy` y ejecuta:
+Error Too many connections en Amazon RDS: Se controló el desbordamiento de hilos bloqueantes limitando rigurosamente el pool de conexiones compartidas mediante configuraciones personalizadas de HikariCP y removiendo tareas inactivas.
 
-1. **Checkout** del código
-2. **Configure AWS credentials** (usando GitHub Secrets)
-3. **Login a Amazon ECR**
-4. **Build y Push** de la imagen Docker
-5. **Deploy** en la instancia EC2 backend vía SSH
+Health Checks fallidos en el Load Balancer (Bucle de reinicios en ECS): Corregido configurando las reglas del ALB para apuntar específicamente a los puertos destino de las aplicaciones (8081 o 8082) y usando la ruta base real de la API (/api/v1/...) en lugar de rutas por defecto.
 
-### GitHub Secrets requeridos
-
-| Secret | Descripción |
-|---|---|
-| AWS_ACCESS_KEY_ID | Credencial AWS Academy |
-| AWS_SECRET_ACCESS_KEY | Credencial AWS Academy |
-| AWS_SESSION_TOKEN | Token de sesión AWS Academy |
-| AWS_REGION | Región (us-east-1) |
-| ECR_REGISTRY | URL del repositorio ECR |
-| EC2_HOST | IP pública de la EC2 backend |
-| EC2_USER | Usuario SSH (ubuntu) |
-| EC2_SSH_KEY | Clave privada PEM |
-
----
-
-## Despliegue Manual en EC2
-
-En caso de necesitar desplegar manualmente:
-
-```bash
-# Conectarse a la EC2 backend
-sudo su - ubuntu
-
-# Login a ECR
-aws ecr get-login-password --region us-east-1 \
-  | docker login --username AWS --password-stdin <ECR_REGISTRY>
-
-# Ir al directorio del proyecto
-cd /home/ubuntu/innovatech-backend
-
-# Exportar variables
-export ECR_REGISTRY=<ECR_REGISTRY>
-export IMAGE_TAG=<SHA_DE_LA_IMAGEN>
-
-# Levantar el stack
-docker compose up -d
-
-# Verificar estado
-docker compose ps
-docker volume ls
-```
-
----
-
-## Persistencia de Datos
-
-Se utiliza un **named volume** (`innovatech_mysql_data`) para la base de datos MySQL.
-
-**¿Por qué named volume y no bind mount?**
-- Gestionado por Docker, portable entre contenedores
-- No depende de la ruta del sistema de archivos del host
-- Los datos persisten al reiniciar o reemplazar el contenedor de base de datos
-
----
-
-## Endpoints disponibles
-
-```
-GET  http://<IP_BACKEND>:8080/api/v1/despachos
-POST http://<IP_BACKEND>:8080/api/v1/despachos
-PUT  http://<IP_BACKEND>:8080/api/v1/despachos/{id}
-DELETE http://<IP_BACKEND>:8080/api/v1/despachos/{id}
-
-GET  http://<IP_BACKEND>:8081/api/v1/ventas
-POST http://<IP_BACKEND>:8081/api/v1/ventas
-```
-
----
-
-## Integrantes
-
-- Ariel Ortiz
-- Cristofer Lobos
-
-**Asignatura:** ISY1101-004V — Introducción a Herramientas DevOps  
-**Profesor:** Álvaro Mellado  
-**Evaluación:** Parcial N°2 — 2025
+Desarrollado en un entorno DevOps por Ariel Ortiz y Cristofer Lobos (2026).
