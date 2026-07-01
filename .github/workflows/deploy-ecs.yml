@@ -1,0 +1,80 @@
+name: Deploy Backend Microservices to ECS Fargate
+
+on:
+  push:
+    branches: [ deploy-ecs ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 802047179233.dkr.ecr.us-east-1.amazonaws.com
+  ECS_CLUSTER: innovatech-cluster-ep3
+
+jobs:
+  deploy-despachos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Despachos image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/innovatech-despachos:$IMAGE_TAG -f Dockerfile.despachos .
+          docker tag $ECR_REGISTRY/innovatech-despachos:$IMAGE_TAG $ECR_REGISTRY/innovatech-despachos:latest
+          docker push $ECR_REGISTRY/innovatech-despachos:$IMAGE_TAG
+          docker push $ECR_REGISTRY/innovatech-despachos:latest
+
+      - name: Update Despachos Service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service despachos-service \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+  deploy-ventas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Ventas image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/innovatech-ventas:$IMAGE_TAG -f Dockerfile.ventas .
+          docker tag $ECR_REGISTRY/innovatech-ventas:$IMAGE_TAG $ECR_REGISTRY/innovatech-ventas:latest
+          docker push $ECR_REGISTRY/innovatech-ventas:$IMAGE_TAG
+          docker push $ECR_REGISTRY/innovatech-ventas:latest
+
+      - name: Update Ventas Service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ventas-service \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
