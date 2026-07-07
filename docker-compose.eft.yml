@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  database:
+    image: mysql:8.0
+    container_name: innovatech-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: innovatech_db
+      MYSQL_USER: backend
+      MYSQL_PASSWORD: password123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  despachos:
+    build:
+      context: ./innovatech-backend
+      dockerfile: Dockerfile.despachos
+    container_name: innovatech-despachos
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://database:3306/innovatech_db?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: backend
+      SPRING_DATASOURCE_PASSWORD: password123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SERVER_PORT: 8081
+    networks:
+      - app-network
+
+  ventas:
+    build:
+      context: ./innovatech-backend
+      dockerfile: Dockerfile.ventas
+    container_name: innovatech-ventas
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://database:3306/innovatech_db?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: backend
+      SPRING_DATASOURCE_PASSWORD: password123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SERVER_PORT: 8082
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./innovatech-frontend
+      dockerfile: Dockerfile
+    container_name: innovatech-frontend
+    restart: unless-stopped
+    depends_on:
+      - despachos
+      - ventas
+    ports:
+      - "8080:8080"
+    environment:
+      VITE_API_URL: http://localhost:8081
+    networks:
+      - app-network
+
+volumes:
+  mysql_data:
+    name: innovatech_mysql_data
+
+networks:
+  app-network:
+    driver: bridge
