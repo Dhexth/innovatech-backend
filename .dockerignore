@@ -1,17 +1,23 @@
-# Dependencias
-node_modules
-npm-debug.log
-yarn-error.log
+# Archivos compilados
+target/
+*.class
+*.jar
+*.war
+*.ear
 
-# Archivos de build
-dist
-build
-.vite
+# Archivos de Maven
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
 
-# Archivos de entorno
-.env
-.env.local
-.env.production
+# Archivos de logs
+*.log
+logs/
 
 # Archivos de Git
 .git
@@ -20,6 +26,9 @@ build
 # Archivos de editor
 .vscode
 .idea
+*.iml
+*.ipr
+*.iws
 *.swp
 *.swo
 *.swn
@@ -28,13 +37,12 @@ build
 .DS_Store
 Thumbs.db
 
-# Archivos de logs
-*.log
+# Archivos de Spring Boot
+application.properties
+application.yml
+application-dev.properties
+application-prod.properties
 
-# Archivos de pruebas
-coverage
-.nyc_output
-
-# Archivos de caché
-.eslintcache
-.prettiercache
+# Otros
+*.tmp
+*.bak
